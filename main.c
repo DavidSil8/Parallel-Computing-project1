@@ -1,15 +1,36 @@
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-int n;
-int** matrix;
 int readMatrix();
 void freeMatrix();
 void printMatrix();
+int foxCalculator(int p);
+
+int n;
+int** matrix;
 
 int main(int argc, char *argv[]) {
+
+    int numProcs, rank;
+
     scanf("%d", &n); //Ler o número de vértices
     if (readMatrix()==-1){printf("Erro na criação da matriz\n"); exit(1);}
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    int q = foxCalculator(numProcs);
+    if (q==0) {
+        MPI_Finalize();
+        if (rank == 0)
+            printf("Dimensão da matriz e número de processos não são compatíveis.\n");
+        exit(0);
+    }
+
+    MPI_Finalize();
+
     printMatrix();
     freeMatrix();
 }
@@ -50,4 +71,15 @@ void printMatrix() {
             printf("%d%c", matrix[i][j], " \n"[j==n-1]);//o caracter é um espaço normalmente e um parágrafo no fim da linha (quando j é n-1)
         }
     }
+}
+
+int foxCalculator(int p) {
+    //Calcula e retorna o q para aplicar o algoritmo de Fox. Se não for possível, retorna 0
+    int q=1;
+    while (q*q<p) { //Tentamos encontrar um q que seja a raiz quadrada de p
+        q++;
+    }
+    //Agora q*q é igual ou maior do que p
+    if (q*q!=p || n%q!=0) {return 0;}
+    return q;
 }

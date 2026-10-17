@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int readMatrix();
+int createAndReadMatrix();
 void freeMatrix();
 void printMatrix();
 int foxCalculator(int p);
@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     int numProcs, rank;
 
     scanf("%d", &n); //Ler o número de vértices
-    if (readMatrix()==-1){printf("Erro na criação da matriz\n"); exit(1);}
+    createAndReadMatrix();
 
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
     freeMatrix();
 }
 
-int readMatrix() {
+int createAndReadMatrix() {
     //Função para ler e alocar espaço contíguo para a matriz
     matrix = malloc(n * sizeof(int*));
     int *data = malloc(n * n * sizeof(int));

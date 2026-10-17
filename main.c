@@ -36,15 +36,10 @@ int main(int argc, char *argv[]) {
 }
 
 int readMatrix() {
-    //Função para ler e alocar espaço para a matriz. Retorna -1 se houver um erro ou 0 caso a alocação funcione
-
-    //Criar a matriz
+    //Função para ler e alocar espaço contíguo para a matriz
     matrix = malloc(n * sizeof(int*));
-    if (matrix == NULL) {return -1;}
-    for (int i = 0; i < n; i++) {
-        matrix[i] = malloc(n * sizeof(int));
-        if (matrix[i] == NULL) {return -1;}
-    }
+    int *data = malloc(n * n * sizeof(int));
+    for (int i = 0; i < n; i++) matrix[i] = &data[i * n];
 
     //Ler a matriz
     for (int i = 0; i < n; i++) {
@@ -57,10 +52,7 @@ int readMatrix() {
 
 void freeMatrix() {
     //Função para libertar a matrix (foi criada com malloc)
-
-    for (int i = 0; i < n; i++) {
-        free(matrix[i]); //Libertamos cada uma das linhas
-    }
+    free(matrix[0]);
     free(matrix); //Libertamos o pointer para as linhas
 }
 

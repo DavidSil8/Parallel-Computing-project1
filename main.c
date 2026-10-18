@@ -13,14 +13,17 @@ int main(int argc, char *argv[]) {
     int** matrix;
     int numProcs, rank;
 
-    scanf("%d", &n); //Ler o número de vértices
-    matrix = createMatrix(n);
-    readMatrix(matrix, n);
-
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+    if (rank==0) {
+        scanf("%d", &n); //Ler o número de vértices
+    }
+
+    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    //Vamos verificar se o tamanho da matriz e o número de processos permitem aplicar o algoritmo de fox
     int q = foxCalculator(n, numProcs);
     if (q==0) {
         MPI_Finalize();
@@ -29,10 +32,27 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    MPI_Finalize();
+    if (rank==0) {
+        matrix = createMatrix(n);
+        readMatrix(matrix, n);
+    }
 
-    printMatrix(matrix, n);
-    freeMatrix(matrix);
+    //Vamos agora dividir a matriz nas várias sub matrizes
+    MPI_Datatype submatrix;
+    MPI_Type_vector(n/q, n/q, n, MPI_INT, &submatrix);
+    MPI_Type_commit(&submatrix);
+
+    //TODO: Usar MPI_Scatterv para distribuir a matrix nas várias submatrizes de cada processo
+
+
+
+    if (rank==0) {
+        printMatrix(matrix, n);
+        freeMatrix(matrix);
+    }
+
+    MPI_Type_free(&submatrix);
+    MPI_Finalize();
 }
 
 int** createMatrix(int n) {

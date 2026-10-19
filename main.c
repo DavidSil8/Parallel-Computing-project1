@@ -32,26 +32,49 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
+    matrix = createMatrix(n);
     if (rank==0) {
-        matrix = createMatrix(n);
         readMatrix(matrix, n);
     }
 
+    int subN = n/q;
+
     //Vamos agora dividir a matriz nas várias sub matrizes
-    MPI_Datatype submatrix;
-    MPI_Type_vector(n/q, n/q, n, MPI_INT, &submatrix);
-    MPI_Type_commit(&submatrix);
+    MPI_Datatype submatrixTypeUnsized, submatrixType;
+    MPI_Type_vector(subN, subN, n, MPI_INT, &submatrixTypeUnsized); //Este tipo corresponde à distribuição da submatriz na memória
+    /*
+     *Para conseguirmos enviar várias submatrizes sem o mpi achar que cada submatriz começa onde a anterior acabou, temos
+     *de mudar o tamanho do datatype. Vamos definir que a submatriz ocupa subN ints de espaço. Assim, com um displacement de 1
+     *passamos para a segunda submatriz.
+     */
+    MPI_Type_create_resized(submatrixTypeUnsized,0,subN*sizeof(int),&submatrixType);
+    MPI_Type_commit(&submatrixType);
 
-    //TODO: Usar MPI_Scatterv para distribuir a matrix nas várias submatrizes de cada processo
+    int sendcounts[numProcs];
+    int displacements[numProcs];
+    for (int i = 0; i < numProcs; i++) {
+        sendcounts[i] = 1; //enviamos 1 elemento do tipo submatrixType para cada processo
+        displacements[i] = i%q + (i/q)*q*(subN); //as submatrizes começam em "coordenadas" diferentes da matriz e esta expressão dá-nos o ponto inicial de cada uma
+    }
+    int** submatrix = createMatrix(subN);
 
+    //Scatterv permite usar displacements
+    MPI_Scatterv(matrix[0], sendcounts, displacements, submatrixType, submatrix[0], (subN)*(subN), MPI_INT, 0, MPI_COMM_WORLD);
 
+    //Início da parte alterável
+
+    printf("rank: %d  ",rank);
+    printMatrix(submatrix, subN);
 
     if (rank==0) {
         printMatrix(matrix, n);
-        freeMatrix(matrix);
     }
 
-    MPI_Type_free(&submatrix);
+    //Fim da parte alterável
+
+    freeMatrix(matrix);
+    freeMatrix(submatrix);
+    MPI_Type_free(&submatrixType);
     MPI_Finalize();
 }
 

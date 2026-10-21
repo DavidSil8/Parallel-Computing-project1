@@ -6,7 +6,7 @@ int** createMatrix(int n);
 void readMatrix(int** matrix, int n);
 void freeMatrix(int** matrix);
 void printMatrix(int** matrix, int n);
-int foxCalculator(int n, int p);
+int qCalculator(int n, int p);
 
 int main(int argc, char *argv[]) {
     int n;
@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     //Vamos verificar se o tamanho da matriz e o número de processos permitem aplicar o algoritmo de fox
-    int q = foxCalculator(n, numProcs);
+    int q = qCalculator(n, numProcs);
     if (q==0) {
         MPI_Finalize();
         if (rank == 0)
@@ -32,12 +32,24 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
+    //Vamos alocar espaço para a matriz e lê-la do input
     matrix = createMatrix(n);
     if (rank==0) {
         readMatrix(matrix, n);
     }
 
     int subN = n/q;
+
+    //Vamos criar um comunicador para cada linha e para cada coluna
+    MPI_Comm rowComm, colComm;
+    MPI_Comm_split(MPI_COMM_WORLD, rank/q, rank, &rowComm);
+    MPI_Comm_split(MPI_COMM_WORLD, rank%q, rank, &colComm);
+    //E guardar os ranks nestes novos comunicadores
+    int rowRank, colRank;
+    MPI_Comm_rank(rowComm, &rowRank);
+    MPI_Comm_rank(colComm, &colRank);
+
+    printf("global rank: %d, row rank: %d, col rank: %d\n",rank,rowRank,colRank);
 
     //Vamos agora dividir a matriz nas várias sub matrizes
     MPI_Datatype submatrixTypeUnsized, submatrixType;
@@ -54,7 +66,7 @@ int main(int argc, char *argv[]) {
     int displacements[numProcs];
     for (int i = 0; i < numProcs; i++) {
         sendcounts[i] = 1; //enviamos 1 elemento do tipo submatrixType para cada processo
-        displacements[i] = i%q + (i/q)*q*(subN); //as submatrizes começam em "coordenadas" diferentes da matriz e esta expressão dá-nos o ponto inicial de cada uma
+        displacements[i] = i%q + (i/q)*(subN)*q; //as submatrizes começam em "coordenadas" diferentes da matriz e esta expressão dá-nos o ponto inicial de cada uma
     }
     int** submatrix = createMatrix(subN);
 
@@ -75,6 +87,8 @@ int main(int argc, char *argv[]) {
     freeMatrix(matrix);
     freeMatrix(submatrix);
     MPI_Type_free(&submatrixType);
+    MPI_Comm_free(&rowComm);
+    MPI_Comm_free(&colComm);
     MPI_Finalize();
 }
 
@@ -109,7 +123,7 @@ void printMatrix(int** matrix, int n) {
     }
 }
 
-int foxCalculator(int n, int p) {
+int qCalculator(int n, int p) {
     //Calcula e retorna o q para aplicar o algoritmo de Fox. Se não for possível, retorna 0
     int q=1;
     while (q*q<p) { //Tentamos encontrar um q que seja a raiz quadrada de p

@@ -37,13 +37,17 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
+    int subN = n/q;
+
     //Vamos alocar espaço para a matriz e lê-la do input
     matrix = createMatrix(n);
     if (rank==0) {
         readMatrix(matrix, n);
     }
 
-    int subN = n/q;
+    MPI_Barrier(MPI_COMM_WORLD);
+    double start = MPI_Wtime(); //Vamos começar a medição do tempo de execução
+
 
     //Vamos criar um comunicador para cada linha e para cada coluna
     MPI_Comm rowComm, colComm;
@@ -53,6 +57,7 @@ int main(int argc, char *argv[]) {
     int rankRow, rankCol;
     MPI_Comm_rank(rowComm, &rankRow);
     MPI_Comm_rank(colComm, &rankCol);
+
 
     //Vamos agora dividir a matriz nas várias sub matrizes
     MPI_Datatype submatrixTypeUnsized, submatrixType;
@@ -74,6 +79,7 @@ int main(int argc, char *argv[]) {
     int** subMatrix = createMatrix(subN); //Esta matriz vai servir como a "base" para cada processo
     //Vamos distribuir a matriz pelos processos usando scatterv (permite usar displacements, ao contrário do scatter normal)
     MPI_Scatterv(&matrix[0][0], sendcounts, displacements, submatrixType, &subMatrix[0][0], (subN)*(subN), MPI_INT, 0, MPI_COMM_WORLD);
+
 
     //Precisamos de mais algumas matrizes: vamos chamar subMatrixA à matriz da esquerda na multiplicação e subMatrixB à da direita
     int** subMatrixA = createMatrix(subN);
@@ -101,26 +107,24 @@ int main(int argc, char *argv[]) {
             MPI_Sendrecv_replace(&subMatrixB[0][0],subN*subN,MPI_INT,(rankCol-1+q)%q,0,(rankCol+1)%q,0,colComm,MPI_STATUS_IGNORE);
             //Na destination somámos q antes de usar % porque % não funciona da mesma forma com números negativos
         }
+
         if (exponent*2<n) { //Em todas as iterações menos na última
-            copyMatrix(result,subMatrix,subN); //Para recomecarmos basta guardar o resultado na matriz base e passar à próxima iteração
+            copyMatrix(result,subMatrix,subN); //Para recomeçarmos basta guardar o resultado na matriz base e passar à próxima iteração
         }
     }
 
     //Temos agora de juntar as matrizes result numa só matriz. Para isso podemos reutilizar os sendcounts e os displacements do scatterv
     MPI_Gatherv(&result[0][0], subN*subN, MPI_INT, &matrix[0][0], sendcounts, displacements, submatrixType, 0, MPI_COMM_WORLD);
 
-
-    //Início da parte alterável
-    //printf("global rank: %d, row rank: %d, col rank: %d\n",rank,rankRow,rankCol);
-    //printf("rank: %d  ",rank);
-    //printMatrix(subMatrix, subN);
+    MPI_Barrier(MPI_COMM_WORLD);
+    double end = MPI_Wtime(); //Acabamos a medição do tempo de execução
 
     if (rank==0) {
         printMatrix(matrix, n);
+        printf("Tempo de execução: %f segundos\n", end - start);
     }
 
-    //Fim da parte alterável
-
+    //Temos de ter cuidado e libertar a memória que alocámos
     freeMatrix(matrix);
     freeMatrix(subMatrix);
     freeMatrix(subMatrixA);
@@ -134,7 +138,7 @@ int main(int argc, char *argv[]) {
 }
 
 int** createMatrix(int n) {
-    //Aloca espaço para a matriz
+    //Aloca espaço para uma matriz n*n
     int** matrix = malloc(n * sizeof(int*));
     int *data = malloc(n * n * sizeof(int));
     for (int i = 0; i < n; i++) matrix[i] = &data[i * n];
@@ -156,7 +160,7 @@ void readMatrix(int** matrix, int n) {
 }
 
 void freeMatrix(int** matrix) {
-    //Liberta a matrix (foi criada com malloc)
+    //Liberta a memória que foi alocada para a matriz
     free(matrix[0]);
     free(matrix);
 }
@@ -166,7 +170,7 @@ void printMatrix(int** matrix, int n) {
         for (int j = 0; j < n; j++) {
             int temp = matrix[i][j];
             if (temp==INT_MAX) {temp = 0;} //Na representação escrevemos infinitos como zeros
-            printf("%d%c", temp, " \n"[j==n-1]);//O caracter é um espaço normalmente e um parágrafo no fim da linha (quando j é n-1)
+            printf("%d%c", temp, " \n"[j==n-1]);//O %c é um espaço normalmente e um parágrafo no fim da linha (quando j é n-1)
         }
     }
 }
@@ -200,6 +204,7 @@ void copyMatrix(int** source, int** dest, int n) {
 }
 
 void distProduct(int** matrixA, int** matrixB, int** result, int n) {
+    //Multiplica a primeira matriz pela segunda e atualiza o resultado que está na terceira
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
             for (int k = 0; k < n; k++) {

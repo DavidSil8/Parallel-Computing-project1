@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
 
     if (rank==0) {
         printMatrix(matrix, n);
-        printf("Tempo de execução: %f segundos\n", end - start);
+        printf("Tempo de execução: %f milissegundos\n", (end - start)*1000);
     }
 
     //Temos de ter cuidado e libertar a memória que alocámos
